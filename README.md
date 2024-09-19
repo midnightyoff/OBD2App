@@ -1,4 +1,5 @@
 # OBD2App
+Impelematation of bachelor thesis 
 
 ## source list
 https://www.csselectronics.com/pages/obd2-data-logger-sd-memory-convert
