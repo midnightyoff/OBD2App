@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">OBD2App</string>
+    <string name="title_activity_terminal">TerminalActivity</string>
+    <string name="title_activity_main2">MainActivity2</string>
+</resources>
