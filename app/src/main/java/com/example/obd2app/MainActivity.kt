@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -132,8 +136,10 @@ fun BluetoothConnectionScreen(navController: NavController, viewModel: SimpleVie
 //            Log.d("ExampleScreen","PERMISSION GRANTED")
         }
     }
-
+    if (!isBluetoothPermissionGranted)
+        launcher.launch(Manifest.permission.BLUETOOTH_CONNECT)
     val pairedDevices = bluetoothAdapter.bondedDevices.toList()
+//    val pairedDevices: List<BluetoothDevice?> = listOf<BluetoothDevice?>(null)
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     Column {
         Row {
@@ -142,16 +148,18 @@ fun BluetoothConnectionScreen(navController: NavController, viewModel: SimpleVie
         Row {
             Column {
                 pairedDevices.forEach { device ->
-                    ListItem(
-                        headlineContent = { Text(device.name) },
-                        colors = ListItemDefaults.colors(
-                            containerColor = if (selectedDevice != null && selectedDevice == device) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.inversePrimary
-                        ),
-                        modifier = Modifier.clickable {
-                            selectedDevice = device // Запоминаем строку
-                        }
-                    )
+                    device?.let {
+                        ListItem(
+                            headlineContent = { Text(device.name) },
+                            colors = ListItemDefaults.colors(
+                                containerColor = if (selectedDevice != null && selectedDevice == device) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.inversePrimary
+                            ),
+                            modifier = Modifier.clickable {
+                                selectedDevice = device // Запоминаем строку
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -169,11 +177,8 @@ fun BluetoothConnectionScreen(navController: NavController, viewModel: SimpleVie
                             // Создаём сокет и подключаемся
                             val socket = selectedDevice!!.createRfcommSocketToServiceRecord(uuid)
                             socket.connect()
-                            // Получаем потоки ввода/вывода
-                            val inputStream = socket.inputStream
-                            val outputStream = socket.outputStream
                             // Устанавливаем соединение в ViewModel
-                            viewModel.setConnection(inputStream, outputStream)
+                            viewModel.setConnection(socket)
                             // Переходим на экран отправки команд
                             navController.navigate("commandScreen")
                         } catch (_: Exception) {
@@ -193,9 +198,11 @@ fun BluetoothConnectionScreen(navController: NavController, viewModel: SimpleVie
 @Composable
 fun ObdCommandScreen(navController: NavController, viewModel: SimpleViewModel) {
     // Состояние для ввода текста
-    var inputText by remember { mutableStateOf("00") }
+    var inputText by remember { mutableStateOf("010C") }
     // Состояние для вывода текста
-    var displayedText by remember { mutableStateOf("Нет пока") }
+    val response by viewModel.commandResponse.collectAsState()
+
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
@@ -206,7 +213,7 @@ fun ObdCommandScreen(navController: NavController, viewModel: SimpleViewModel) {
         Row {
             Button(
                 onClick = {
-                    // TODO отключиться от адаптера
+                    viewModel.disconnect()
                     navController.navigate("screenStart")
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -224,12 +231,10 @@ fun ObdCommandScreen(navController: NavController, viewModel: SimpleViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Кнопка для вывода текста
+        // Кнопка для ввода команды
         Button(
             onClick = {
-                // При нажатии на кнопку выводим текст в TextView
-                // TODO отправить запрос из inputText
-                displayedText = inputText
+                viewModel.sendCommand(inputText)
             },
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -239,11 +244,15 @@ fun ObdCommandScreen(navController: NavController, viewModel: SimpleViewModel) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Поле для вывода текста
-        Text(
-            text = displayedText,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Текст с возможностью прокрутки
+        SelectionContainer {
+            Text(
+                text = response,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+            )
+        }
     }
 }
 
